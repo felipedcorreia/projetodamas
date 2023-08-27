@@ -72,12 +72,13 @@ movePiece board (x, y) (x', y') =
 
 --verificando se o movimento é valido
 ehMovimentoValido :: Coord -> Coord -> Content -> Bool
-ehMovimentoValido inicial movimento valor = 
-    if (length(casas) >= 2)
-        then ((casas)!!0 == movimento) || ((casas)!!1 == movimento)
-        else (casas)!!0 == movimento
-    where casas = casasPossiveis inicial valor
-
+ehMovimentoValido inicial movimento valor =
+    if ehCaptura && length casas >= 2
+        then elem movimento casas
+        else elem movimento casas
+    where
+        ehCaptura = abs (fst movimento - fst inicial) == 2 && abs (snd movimento - snd inicial) == 2
+        casas = casasPossiveis inicial valor
 
 ehCasaLivre :: Board -> Coord -> Bool
 ehCasaLivre board (c, r) = getContent (getCell board c r) == Empty
@@ -94,10 +95,10 @@ verifyContent content = content == White
 --devolve array com as casas possiveis de serem ocupadas dado uma celula inicial
 casasPossiveis :: Coord -> Content -> [Coord] 
 casasPossiveis (c,r) valor = do
-    (c1, r1) <- [(c+1, r-1),(c-1, r-1)] --para as peças brancas
-    (c2, r2) <- [(c+1, r+1),(c-1, r+1)] --para as pecas pretas
-    guard (c1 `elem` [0..7] && r1 `elem`[0..7])
-    guard (c2 `elem` [0..7] && r2 `elem`[0..7])
+    (c1, r1) <- [(c+1, r-1),(c-1, r-1),(c+2, r-2),(c-2, r-2)] -- para as peças brancas
+    (c2, r2) <- [(c+1, r+1),(c-1, r+1),(c+2, r+2),(c-2, r+2)] -- para as pecas pretas
+    guard (c1 `elem` [0..7] && r1 `elem` [0..7])
+    guard (c2 `elem` [0..7] && r2 `elem` [0..7])
     if valor == White then return (c1, r1) else return (c2, r2)
 
 showCasas :: [Coord] -> String
@@ -105,27 +106,49 @@ showCasas x = show x
 
 moverPeca :: Board -> Coord -> Coord -> Board
 moverPeca board (c, r) movimento = 
-    if ehMovimentoValido (c, r) movimento (getContent(getCell board c r)) 
-        then movePiece board (c, r) movimento 
+    if ehMovimentoValido (c, r) movimento (getContent (getCell board c r))
+        then if abs (fst movimento - c) == 2 && abs (snd movimento - r) == 2
+                 then movePiece (removerPeca board (c + div (fst movimento - c) 2) (r + div (snd movimento - r) 2)) (c, r) movimento
+                 else movePiece board (c, r) movimento
         else board
+
+removerPeca :: Board -> Int -> Int -> Board
+removerPeca board c r = 
+    [[if r == y && c == x then emptyCell 1 c r else getCell board x y | x <- [0..7]] | y <- [0..7]]
+
 
 --inicia o jogo - é a função recursiva que mantem o jogo rodando recebendo tabuleiros atualizados com os movimentos
 play :: Board -> IO ()
 play board = do
-     --iniciando o jogo
+    putStrLn "Tabuleiro atual:"
+    showBoard board
     putStrLn "Digite a coordenada da peça que deseja movimentar (x,y):"
     input <- getLine
-    let coord = read input :: Coord
     let (xInicial, yInicial) = read input :: Coord
-    putStrLn "Digite a coordenada da posição final que deseja movimentar (x,y):"
-    input2 <- getLine
-    let (xFinal, yFinal) = read input2 :: Coord
-    -- putStrLn ("Conteúdo da célula inicial: " ++ show xInicial)
-    -- putStrLn ("Conteúdo da célula final: " ++ show xFinal)
-    let tabuleiroComMovimento = moverPeca board (xInicial, yInicial) (xFinal, yFinal)
-    showBoard (tabuleiroComMovimento)
-    play tabuleiroComMovimento
+    let origCell = getCell board xInicial yInicial
+    if getContent origCell /= Empty
+        then do
+            putStrLn "Digite a coordenada da posição final que deseja movimentar (x,y):"
+            input2 <- getLine
+            let (xFinal, yFinal) = read input2 :: Coord
+            let destCell = getCell board xFinal yFinal
 
+            if getContent destCell == Empty
+                then do
+                    let validMove = ehMovimentoValido (xInicial, yInicial) (xFinal, yFinal) (getContent origCell)
+                    if validMove
+                        then do
+                            let tabuleiroComMovimento = moverPeca board (xInicial, yInicial) (xFinal, yFinal)
+                            play tabuleiroComMovimento
+                        else do
+                            putStrLn "Movimento inválido."
+                            play board
+                else do
+                    putStrLn "Posição final ocupada."
+                    play board
+        else do
+            putStrLn "Não há peça na posição inicial."
+            play board
 
 someFunc :: IO ()
 someFunc = do
