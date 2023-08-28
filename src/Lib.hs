@@ -2,7 +2,7 @@ module Lib
     ( someFunc
     ) where
 import Control.Monad (guard)
-
+import Data.List
 
 data Content = Black | White | Empty | WhiteDama | BlackDama deriving(Eq)
 
@@ -13,10 +13,20 @@ instance Show Content where
     show BlackDama = " ⦿ "
     show WhiteDama = " ⓞ "
 
+oponente :: Content -> [Content]
+oponente Black = [White,WhiteDama]
+oponente BlackDama = [White,WhiteDama]
+oponente WhiteDama = [Black,BlackDama]
+oponente White = [Black,BlackDama]
+
 type Coord = (Int, Int)
 type Cell = (Content, String, Coord)  -- (Conteudo, Cor, Coordenada)
 
 type Board = [[Cell]]
+
+viraDama :: Coord -> Content -> Content
+viraDama (_,7) Black =  BlackDama
+viraDama (_,0) White =  WhiteDama
 
 --setando posições das peças no tabuleiro inicial
 initialSetCell :: Int -> Int -> Int -> Cell
@@ -61,6 +71,12 @@ showBoard board = do
 showContent :: Content -> String
 showContent n = show n
 
+getContent :: Cell -> Content
+getContent (x, _, _) = x
+
+getCell :: Board -> Int -> Int -> Cell
+getCell board col row = (board !! row) !! col
+
 --mover a peça diretamente
 movePiece :: Board -> Coord -> Coord -> Board
 movePiece board (x, y) (x', y') = 
@@ -70,52 +86,66 @@ movePiece board (x, y) (x', y') =
             then createCell c r (getContent(getCell board x y)) --casa da celula final recebe o conteudo
             else getCell board c r | c <- [0..7]] | r <- [0..7]] --demais casas nao mudam
 
---verificando se o movimento é valido
-ehMovimentoValido :: Coord -> Coord -> Content -> Bool
-ehMovimentoValido inicial movimento valor =
-    if ehCaptura && length casas >= 2
-        then elem movimento casas
-        else elem movimento casas
-    where
-        ehCaptura = abs (fst movimento - fst inicial) == 2 && abs (snd movimento - snd inicial) == 2
-        casas = casasPossiveis inicial valor
+--casasPossiveis :: Coord -> Content -> [Coord] 
+--casasPossiveis (c,r) valor = do
+--    (c1, r1) <- [(c+1, r-1),(c-1, r-1),(c+2, r-2),(c-2, r-2)] -- para as peças brancas
+--    (c2, r2) <- [(c+1, r+1),(c-1, r+1),(c+2, r+2),(c-2, r+2)] -- para as pecas pretas
+--    guard (c1 `elem` [0..7] && r1 `elem` [0..7])
+--    guard (c2 `elem` [0..7] && r2 `elem` [0..7])
+--    if valor == White then return (c1, r1) else return (c2, r2)
 
 ehCasaLivre :: Board -> Coord -> Bool
 ehCasaLivre board (c, r) = getContent (getCell board c r) == Empty
 
-getCell :: Board -> Int -> Int -> Cell
-getCell board col row = (board !! row) !! col
+casasPossiveis :: Board -> Coord -> Content -> [Coord] 
+casasPossiveis board (c,r) valor = movimentoSimples ++ comerPeca
+    where
+        movimentoSimples 
+            | valor == Black = [(x,r+1) | x <- [c+1,c-1], x >= 0 && x <= 7 && (r+1) <= 7 && ehCasaLivre board (x,r+1)]
+            | valor == White = [(x,r-1) | x <- [c+1,c-1], x >= 0 && x <= 7 && (r-1) >= 0 && ehCasaLivre board (x,r-1)]
+            | otherwise = nub ([(x,x+a) | x <- [0..7], a <- [r-c], (x+a) >= 0 && (x+a) <= 7 && x /= c])
+        comerPeca = [(x,y) | x <- [c+2], y <- [r+2,r-2], x <= 7 && (r+2) <= 7 && (r-2) >= 0 && ehCasaLivre board (x,y) && (((getContent (getCell board (x-1) (r+1))) `elem` oponente valor) || ((getContent (getCell board (x-1) (r-1))) `elem` oponente valor))] ++ [(x,y) | x <- [c-2], y <- [r+2,r-2], x >= 0 && (r+2) <= 7 && (r-2) >= 0 && ehCasaLivre board (x,y) && (((getContent (getCell board (x+1) (r+1))) `elem` oponente valor) || ((getContent (getCell board (x+1) (r-1))) `elem` oponente valor))] 
+             
+--casasPossiveisDamas :: Coord -> Content -> [Coord] 
+--casasPossiveisDamas (c,r) valor = nub (diagonal1 ++ diagonal2)
+--    where
+--        removerCasaAtual x = (take x [0..7])++(drop (x+1) [0..7])
+--        diagonal1 = zip (removerCasaAtual c) (reverse (removerCasaAtual r))
+--        diagonal2 = [(x,x+a) | x <- [0..7], a <- [r-c], (x+a) >= 0 && (x+a) <= 7 && x /= c]
 
-getContent :: Cell -> Content
-getContent (x, _, _) = x
+--verificando se o movimento é valido
+ehMovimentoValido :: Board ->  Coord -> Coord -> Content -> Bool
+ehMovimentoValido board inicial movimento valor = movimento `elem` (casasPossiveis board inicial valor)
+
+--ehMovimentoValido :: Coord -> Coord -> Content -> Bool
+--ehMovimentoValido inicial movimento valor =
+--    if ehCaptura && length casas >= 2
+--        then elem movimento casas
+--        else elem movimento casas
+--    where
+--        ehCaptura = abs (fst movimento - fst inicial) == 2 && abs (snd movimento - snd inicial) == 2
+--        casas = casasPossiveis inicial valor
+
 
 verifyContent :: Content -> Bool
 verifyContent content = content == White
 
 --devolve array com as casas possiveis de serem ocupadas dado uma celula inicial
-casasPossiveis :: Coord -> Content -> [Coord] 
-casasPossiveis (c,r) valor = do
-    (c1, r1) <- [(c+1, r-1),(c-1, r-1),(c+2, r-2),(c-2, r-2)] -- para as peças brancas
-    (c2, r2) <- [(c+1, r+1),(c-1, r+1),(c+2, r+2),(c-2, r+2)] -- para as pecas pretas
-    guard (c1 `elem` [0..7] && r1 `elem` [0..7])
-    guard (c2 `elem` [0..7] && r2 `elem` [0..7])
-    if valor == White then return (c1, r1) else return (c2, r2)
 
 showCasas :: [Coord] -> String
 showCasas x = show x
-
-moverPeca :: Board -> Coord -> Coord -> Board
-moverPeca board (c, r) movimento = 
-    if ehMovimentoValido (c, r) movimento (getContent (getCell board c r))
-        then if abs (fst movimento - c) == 2 && abs (snd movimento - r) == 2
-                 then movePiece (removerPeca board (c + div (fst movimento - c) 2) (r + div (snd movimento - r) 2)) (c, r) movimento
-                 else movePiece board (c, r) movimento
-        else board
 
 removerPeca :: Board -> Int -> Int -> Board
 removerPeca board c r = 
     [[if r == y && c == x then emptyCell 1 c r else getCell board x y | x <- [0..7]] | y <- [0..7]]
 
+moverPeca :: Board -> Coord -> Coord -> Board
+moverPeca board (c, r) movimento = 
+    if ehMovimentoValido board (c, r) movimento (getContent (getCell board c r))
+        then if abs (fst movimento - c) == 2 && abs (snd movimento - r) == 2
+                 then movePiece (removerPeca board (c + div (fst movimento - c) 2) (r + div (snd movimento - r) 2)) (c, r) movimento
+                 else movePiece board (c, r) movimento
+        else board
 
 --inicia o jogo - é a função recursiva que mantem o jogo rodando recebendo tabuleiros atualizados com os movimentos
 play :: Board -> IO ()
@@ -135,7 +165,7 @@ play board = do
 
             if getContent destCell == Empty
                 then do
-                    let validMove = ehMovimentoValido (xInicial, yInicial) (xFinal, yFinal) (getContent origCell)
+                    let validMove = ehMovimentoValido board (xInicial, yInicial) (xFinal, yFinal) (getContent origCell)
                     if validMove
                         then do
                             let tabuleiroComMovimento = moverPeca board (xInicial, yInicial) (xFinal, yFinal)
@@ -144,7 +174,7 @@ play board = do
                             putStrLn "Movimento inválido."
                             play board
                 else do
-                    putStrLn "Posição final ocupada."
+                    putStrLn "Posição final ocupada. Tente novamente."
                     play board
         else do
             putStrLn "Não há peça na posição inicial."
