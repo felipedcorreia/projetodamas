@@ -97,22 +97,17 @@ movePiece board (x, y) (x', y') =
 ehCasaLivre :: Board -> Coord -> Bool
 ehCasaLivre board (c, r) = getContent (getCell board c r) == Empty
 
+comerPeca :: Board -> Coord -> Content -> [Coord]
+comerPeca board (c,r) valor = [(x,y) | x <- [c+2], y <- [r+2,r-2], x <= 7 && (r+2) <= 7 && (r-2) >= 0 && ehCasaLivre board (x,y) && (((getContent (getCell board (x-1) (r+1))) `elem` oponente valor) || ((getContent (getCell board (x-1) (r-1))) `elem` oponente valor))] ++ [(x,y) | x <- [c-2], y <- [r+2,r-2], x >= 0 && (r+2) <= 7 && (r-2) >= 0 && ehCasaLivre board (x,y) && (((getContent (getCell board (x+1) (r+1))) `elem` oponente valor) || ((getContent (getCell board (x+1) (r-1))) `elem` oponente valor))] 
+
 casasPossiveis :: Board -> Coord -> Content -> [Coord] 
-casasPossiveis board (c,r) valor = movimentoSimples ++ comerPeca
+casasPossiveis board (c,r) valor = nub (movimentoSimples ++ comerPeca board (c,r) valor)
     where
         movimentoSimples 
             | valor == Black = [(x,r+1) | x <- [c+1,c-1], x >= 0 && x <= 7 && (r+1) <= 7 && ehCasaLivre board (x,r+1)]
             | valor == White = [(x,r-1) | x <- [c+1,c-1], x >= 0 && x <= 7 && (r-1) >= 0 && ehCasaLivre board (x,r-1)]
-            | otherwise = nub ([(x,x+a) | x <- [0..7], a <- [r-c], (x+a) >= 0 && (x+a) <= 7 && x /= c])
-        comerPeca = [(x,y) | x <- [c+2], y <- [r+2,r-2], x <= 7 && (r+2) <= 7 && (r-2) >= 0 && ehCasaLivre board (x,y) && (((getContent (getCell board (x-1) (r+1))) `elem` oponente valor) || ((getContent (getCell board (x-1) (r-1))) `elem` oponente valor))] ++ [(x,y) | x <- [c-2], y <- [r+2,r-2], x >= 0 && (r+2) <= 7 && (r-2) >= 0 && ehCasaLivre board (x,y) && (((getContent (getCell board (x+1) (r+1))) `elem` oponente valor) || ((getContent (getCell board (x+1) (r-1))) `elem` oponente valor))] 
+            | otherwise = [x | x <- (nub ((zip (reverse [0..(c-1)]) [(r+1)..7]) ++ (zip [(c+1)..7] (reverse [0..(r-1)]))++[(x,x+a) | x <- [0..7], a <- [r-c], (x+a) >= 0 && (x+a) <= 7 && x /= c])), ehCasaLivre board x]
              
---casasPossiveisDamas :: Coord -> Content -> [Coord] 
---casasPossiveisDamas (c,r) valor = nub (diagonal1 ++ diagonal2)
---    where
---        removerCasaAtual x = (take x [0..7])++(drop (x+1) [0..7])
---        diagonal1 = zip (removerCasaAtual c) (reverse (removerCasaAtual r))
---        diagonal2 = [(x,x+a) | x <- [0..7], a <- [r-c], (x+a) >= 0 && (x+a) <= 7 && x /= c]
-
 --verificando se o movimento é valido
 ehMovimentoValido :: Board ->  Coord -> Coord -> Content -> Bool
 ehMovimentoValido board inicial movimento valor = movimento `elem` (casasPossiveis board inicial valor)
@@ -125,7 +120,6 @@ ehMovimentoValido board inicial movimento valor = movimento `elem` (casasPossive
 --    where
 --        ehCaptura = abs (fst movimento - fst inicial) == 2 && abs (snd movimento - snd inicial) == 2
 --        casas = casasPossiveis inicial valor
-
 
 verifyContent :: Content -> Bool
 verifyContent content = content == White
@@ -146,6 +140,8 @@ moverPeca board (c, r) movimento =
                  then movePiece (removerPeca board (c + div (fst movimento - c) 2) (r + div (snd movimento - r) 2)) (c, r) movimento
                  else movePiece board (c, r) movimento
         else board
+
+
 
 --inicia o jogo - é a função recursiva que mantem o jogo rodando recebendo tabuleiros atualizados com os movimentos
 play :: Board -> IO ()
