@@ -25,6 +25,7 @@ type Cell = (Content, String, Coord)  -- (Conteudo, Cor, Coordenada)
 type Board = [[Cell]]
 
 
+
 viraDama :: Coord -> Content -> Cell 
 viraDama (x,0) White = createCell x 0 WhiteDama
 viraDama (7,y) Black = createCell 7 y BlackDama
@@ -101,8 +102,8 @@ ehCasaLivre :: Board -> Coord -> Bool
 ehCasaLivre board (c, r) = getContent (getCell board c r) == Empty
 
 comerPeca :: Board -> Coord -> Content -> [Coord]
-comerPeca board (c,r) valor = 
-    [(c+2,y) | y <- [r+2,r-2], (c+2) <= 7 && (c+1) <= 7 && y <= 7 && y >= 0 && ehCasaLivre board (c+2,y) && (((getContent (getCell board (c+1) (r+1))) `elem` oponente valor) || ((getContent (getCell board (c+1) (r-1))) `elem` oponente valor))] ++ [(c-2,y) | y <- [r+2,r-2], (c-2) >= 0 && (c-1) >= 0 && y <= 7 && y >= 0 && ehCasaLivre board (c-2,y) && (((getContent (getCell board (c-1) (r+1))) `elem` oponente valor) || ((getContent (getCell board (c-1) (r-1))) `elem` oponente valor))] 
+
+comerPeca board (c,r) valor = [(c+2,y) | y <- [r+2,r-2], (c+2) <= 7 && (c+1) <= 7 && y <= 7 && y >= 0 && ehCasaLivre board (c+2,y) && (((getContent (getCell board (c+1) (r+1))) `elem` oponente valor) || ((getContent (getCell board (c+1) (r-1))) `elem` oponente valor))] ++ [(c-2,y) | y <- [r+2,r-2], (c-2) >= 0 && (c-1) >= 0 && y <= 7 && y >= 0 && ehCasaLivre board (c-2,y) && (((getContent (getCell board (c-1) (r+1))) `elem` oponente valor) || ((getContent (getCell board (c-1) (r-1))) `elem` oponente valor))] 
 
 casasPossiveis :: Board -> Coord -> Content -> [Coord] 
 casasPossiveis board (c,r) valor = nub (movimentoSimples ++ (comerPeca board (c,r) valor))
@@ -144,8 +145,6 @@ moverPeca board (c, r) movimento =
                  then movePiece (removerPeca board (c + div (fst movimento - c) 2) (r + div (snd movimento - r) 2)) (c, r) movimento
                  else movePiece board (c, r) movimento
         else board
-
-
 
 posicoesOponente :: Board -> Content -> [Coord]
 posicoesOponente board valor = [(x,y) | x <- [0..7], y <- [0..7], (getContent (getCell board x y)) `elem` (oponente valor)]
