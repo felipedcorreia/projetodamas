@@ -4,7 +4,7 @@ module Lib
 import Control.Monad (guard)
 import Data.List
 
-data Content = Black | White | Empty | WhiteDama | BlackDama deriving(Eq)
+data Content = Black | White | Empty | WhiteDama | BlackDama deriving (Eq, Read)
 
 instance Show Content where
     show Black = " ● "
@@ -24,9 +24,11 @@ type Cell = (Content, String, Coord)  -- (Conteudo, Cor, Coordenada)
 
 type Board = [[Cell]]
 
-viraDama :: Coord -> Content -> Content
-viraDama (_,7) Black =  BlackDama
-viraDama (_,0) White =  WhiteDama
+
+viraDama :: Coord -> Content -> Cell 
+viraDama (x,0) White = createCell x 0 WhiteDama
+viraDama (7,y) Black = createCell 7 y BlackDama
+viraDama (x,y) valor = createCell x y valor
 
 --setando posições das peças no tabuleiro inicial
 initialSetCell :: Int -> Int -> Int -> Cell
@@ -45,7 +47,7 @@ emptyCell n r c
     | otherwise = (Empty, "\x1b[44m", (r, c))  -- Célula com fundo azul
 
 createCell :: Int -> Int -> Content -> Cell
-createCell r c content = if content == White then (White, "\x1b[44m", (r, c)) else (Black, "\x1b[44m", (r, c))
+createCell r c content = (content, "\x1b[44m", (r, c))
 
 emptyBoard :: Int -> Board
 emptyBoard size = [[emptyCell (y + x) x y | x <- [0..size-1]] | y <- [0..size-1]]
@@ -83,8 +85,9 @@ movePiece board (x, y) (x', y') =
     [[if 
         (r == y && c == x) then emptyCell 1 c r --casa da celula inicial fica vazia
         else if (r == y' && c == x') 
-            then createCell c r (getContent(getCell board x y)) --casa da celula final recebe o conteudo
+            then viraDama (c,r) (getContent(getCell board x y)) --casa da celula final recebe o conteudo
             else getCell board c r | c <- [0..7]] | r <- [0..7]] --demais casas nao mudam
+
 
 --casasPossiveis :: Coord -> Content -> [Coord] 
 --casasPossiveis (c,r) valor = do
@@ -97,22 +100,18 @@ movePiece board (x, y) (x', y') =
 ehCasaLivre :: Board -> Coord -> Bool
 ehCasaLivre board (c, r) = getContent (getCell board c r) == Empty
 
+comerPeca :: Board -> Coord -> Content -> [Coord]
+comerPeca board (c,r) valor = 
+    [(c+2,y) | y <- [r+2,r-2], (c+2) <= 7 && (c+1) <= 7 && y <= 7 && y >= 0 && ehCasaLivre board (c+2,y) && (((getContent (getCell board (c+1) (r+1))) `elem` oponente valor) || ((getContent (getCell board (c+1) (r-1))) `elem` oponente valor))] ++ [(c-2,y) | y <- [r+2,r-2], (c-2) >= 0 && (c-1) >= 0 && y <= 7 && y >= 0 && ehCasaLivre board (c-2,y) && (((getContent (getCell board (c-1) (r+1))) `elem` oponente valor) || ((getContent (getCell board (c-1) (r-1))) `elem` oponente valor))] 
+
 casasPossiveis :: Board -> Coord -> Content -> [Coord] 
-casasPossiveis board (c,r) valor = movimentoSimples ++ comerPeca
+casasPossiveis board (c,r) valor = nub (movimentoSimples ++ (comerPeca board (c,r) valor))
     where
         movimentoSimples 
             | valor == Black = [(x,r+1) | x <- [c+1,c-1], x >= 0 && x <= 7 && (r+1) <= 7 && ehCasaLivre board (x,r+1)]
             | valor == White = [(x,r-1) | x <- [c+1,c-1], x >= 0 && x <= 7 && (r-1) >= 0 && ehCasaLivre board (x,r-1)]
-            | otherwise = nub ([(x,x+a) | x <- [0..7], a <- [r-c], (x+a) >= 0 && (x+a) <= 7 && x /= c])
-        comerPeca = [(x,y) | x <- [c+2], y <- [r+2,r-2], x <= 7 && (r+2) <= 7 && (r-2) >= 0 && ehCasaLivre board (x,y) && (((getContent (getCell board (x-1) (r+1))) `elem` oponente valor) || ((getContent (getCell board (x-1) (r-1))) `elem` oponente valor))] ++ [(x,y) | x <- [c-2], y <- [r+2,r-2], x >= 0 && (r+2) <= 7 && (r-2) >= 0 && ehCasaLivre board (x,y) && (((getContent (getCell board (x+1) (r+1))) `elem` oponente valor) || ((getContent (getCell board (x+1) (r-1))) `elem` oponente valor))] 
+            | otherwise = [x | x <- (nub ((zip (reverse [0..(c-1)]) [(r+1)..7]) ++ (zip [(c+1)..7] (reverse [0..(r-1)]))++[(x,x+a) | x <- [0..7], a <- [r-c], (x+a) >= 0 && (x+a) <= 7 && x /= c])), ehCasaLivre board x]
              
---casasPossiveisDamas :: Coord -> Content -> [Coord] 
---casasPossiveisDamas (c,r) valor = nub (diagonal1 ++ diagonal2)
---    where
---        removerCasaAtual x = (take x [0..7])++(drop (x+1) [0..7])
---        diagonal1 = zip (removerCasaAtual c) (reverse (removerCasaAtual r))
---        diagonal2 = [(x,x+a) | x <- [0..7], a <- [r-c], (x+a) >= 0 && (x+a) <= 7 && x /= c]
-
 --verificando se o movimento é valido
 ehMovimentoValido :: Board ->  Coord -> Coord -> Content -> Bool
 ehMovimentoValido board inicial movimento valor = movimento `elem` (casasPossiveis board inicial valor)
@@ -125,7 +124,6 @@ ehMovimentoValido board inicial movimento valor = movimento `elem` (casasPossive
 --    where
 --        ehCaptura = abs (fst movimento - fst inicial) == 2 && abs (snd movimento - snd inicial) == 2
 --        casas = casasPossiveis inicial valor
-
 
 verifyContent :: Content -> Bool
 verifyContent content = content == White
@@ -147,73 +145,77 @@ moverPeca board (c, r) movimento =
                  else movePiece board (c, r) movimento
         else board
 
+
+
+posicoesOponente :: Board -> Content -> [Coord]
+posicoesOponente board valor = [(x,y) | x <- [0..7], y <- [0..7], (getContent (getCell board x y)) `elem` (oponente valor)]
+
+posicoesJogador :: Board -> Content -> [Coord]
+posicoesJogador board valor = [(x,y) | x <- [0..7], y <- [0..7], (getContent (getCell board x y)) == valor]
+
+obrigatorioComer :: Board -> Content -> [Coord]
+obrigatorioComer board valor = do 
+    (a,b) <- posicoesJogador board valor
+    (c,d) <- posicoesOponente board valor
+    let validMoves = [ (a+1,b+1), (a+1,b-1), (a-1,b+1), (a-1,b-1) ]
+    guard $ (c,d) `elem` validMoves && ehCasaLivre board (c,d)
+    guard $ a `elem` [0..7] && b `elem` [0..7]
+    return (a,b)
+
+
+obrigatorioComerMov :: Board -> Content -> Board
+obrigatorioComerMov board valor = 
+    if length (obrigatorioComer board valor) > 0
+        then moverPeca board ((obrigatorioComer board valor) !! 0) ((comerPeca board ((obrigatorioComer board valor) !! 0) valor) !! 0)
+        else board
+
 --inicia o jogo - é a função recursiva que mantem o jogo rodando recebendo tabuleiros atualizados com os movimentos
 play :: Board -> IO ()
 play board = do
     putStrLn "Tabuleiro atual:"
     showBoard board
-    putStrLn "Digite a coordenada da peça que deseja movimentar (x,y):"
-    input <- getLine
-    let (xInicial, yInicial) = read input :: Coord
-    let origCell = getCell board xInicial yInicial
-    if getContent origCell /= Empty
-        then do
-            putStrLn "Digite a coordenada da posição final que deseja movimentar (x,y):"
-            input2 <- getLine
-            let (xFinal, yFinal) = read input2 :: Coord
-            let destCell = getCell board xFinal yFinal
-
-            if getContent destCell == Empty
+    putStrLn "Escolha a cor da peça (White/Black):"
+    jogador <- getLine
+    let (valor) = read jogador :: Content
+    if length (obrigatorioComer board valor) > 0
+        then do 
+            let novoTabuleiro = obrigatorioComerMov board valor
+            play novoTabuleiro
+        else do
+            putStrLn "Digite a coordenada da peça que deseja movimentar (x,y):"
+            input <- getLine
+            let (xInicial, yInicial) = read input :: Coord
+            if (xInicial, yInicial) `elem` posicoesJogador board valor
                 then do
-                    let validMove = ehMovimentoValido board (xInicial, yInicial) (xFinal, yFinal) (getContent origCell)
-                    if validMove
+                    let origCell = getCell board xInicial yInicial
+                    if getContent origCell /= Empty
                         then do
-                            let tabuleiroComMovimento = moverPeca board (xInicial, yInicial) (xFinal, yFinal)
-                            play tabuleiroComMovimento
+                            putStrLn "Digite a coordenada da posição final que deseja movimentar (x,y):"
+                            input2 <- getLine
+                            let (xFinal, yFinal) = read input2 :: Coord
+                            let destCell = getCell board xFinal yFinal
+                            if getContent destCell == Empty
+                                then do
+                                    let validMove = ehMovimentoValido board (xInicial, yInicial) (xFinal, yFinal) (getContent origCell)
+                                    if validMove
+                                        then do
+                                            let tabuleiroComMovimento = moverPeca board (xInicial, yInicial) (xFinal, yFinal)
+                                            play tabuleiroComMovimento
+                                        else do
+                                            putStrLn "Movimento inválido."
+                                            play board
+                                else do
+                                    putStrLn "Posição final ocupada. Tente novamente."
+                                    play board
                         else do
-                            putStrLn "Movimento inválido."
+                            putStrLn "Não há peça na posição inicial."
                             play board
                 else do
-                    putStrLn "Posição final ocupada. Tente novamente."
+                    putStrLn "Peça do oponente, favor tentar novamente."
                     play board
-        else do
-            putStrLn "Não há peça na posição inicial."
-            play board
+
 
 someFunc :: IO ()
 someFunc = do
-    let newBoard = (createBoard 8)
-    -- let cell = getCell newBoard 0 0
-    -- let content = getContent (getCell newBoard 5 4)
-
-    --Teste inicio de jogada
     showBoard (newBoard)
-    -- let board1 = moverPeca newBoard (6,5) (7,4)
-    -- showBoard (board1)
-    -- let board2 = moverPeca board1 (1,2) (0,3)
-    -- showBoard (board2)
-    -- putStrLn (showCell cell)
-    -- putStrLn (showContent content)
-
-    -- let resultado = (ehMovimentoValido (1,2) (0,3) Black)
-    -- let resultado2 = (ehMovimentoValido (6, 5) (7, 4))
-    -- let arrayCasasPossiveis = casasPossiveis (1, 2) Black
-    -- putStrLn (show (ehCasaLivre newBoard (5,5)))
-    -- putStrLn (showCasas arrayCasasPossiveis)
-    -- putStrLn (show resultado)
-    -- putStrLn (show resultado2)
-
-    play newBoard
-
-    -- --iniciando o jogo
-    -- putStrLn "Digite a coordenada da peça que deseja movimentar (x,y):"
-    -- input <- getLine
-    -- let coord = read input :: Coord
-    -- let (xInicial, yInicial) = read input :: Coord
-    -- putStrLn "Digite a coordenada da posição final que deseja movimentar (x,y):"
-    -- input2 <- getLine
-    -- let (xFinal, yFinal) = read input2 :: Coord
-    -- -- putStrLn ("Conteúdo da célula inicial: " ++ show xInicial)
-    -- -- putStrLn ("Conteúdo da célula final: " ++ show xFinal)
-    -- let tabuleiroComMovimento = moverPeca newBoard (xInicial, yInicial) (xFinal, yFinal)
-    -- showBoard (tabuleiroComMovimento)
+    play board15
