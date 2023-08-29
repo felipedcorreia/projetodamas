@@ -24,8 +24,6 @@ type Cell = (Content, String, Coord)  -- (Conteudo, Cor, Coordenada)
 
 type Board = [[Cell]]
 
-
-
 viraDama :: Coord -> Content -> Cell 
 viraDama (x,0) White = createCell x 0 WhiteDama
 viraDama (7,y) Black = createCell 7 y BlackDama
@@ -176,45 +174,51 @@ play board = do
     putStrLn "Escolha a cor da peça (White/Black):"
     jogador <- getLine
     let (valor) = read jogador :: Content
-    if length (obrigatorioComer board valor) > 0
-        then do 
-            let novoTabuleiro = obrigatorioComerMov board valor
-            play novoTabuleiro
-        else do
-            putStrLn "Digite a coordenada da peça que deseja movimentar (x,y):"
-            input <- getLine
-            let (xInicial, yInicial) = read input :: Coord
-            if (xInicial, yInicial) `elem` posicoesJogador board valor
-                then do
-                    let origCell = getCell board xInicial yInicial
-                    if getContent origCell /= Empty
+    if length (posicoesOponente board valor) > 0
+        then do
+            if length (obrigatorioComer board valor) > 0
+                then do 
+                    let novoTabuleiro = obrigatorioComerMov board valor
+                    play novoTabuleiro
+                else do
+                    putStrLn "Digite a coordenada da peça que deseja movimentar (x,y):"
+                    input <- getLine
+                    let (xInicial, yInicial) = read input :: Coord
+                    if (xInicial, yInicial) `elem` posicoesJogador board valor
                         then do
-                            putStrLn "Digite a coordenada da posição final que deseja movimentar (x,y):"
-                            input2 <- getLine
-                            let (xFinal, yFinal) = read input2 :: Coord
-                            let destCell = getCell board xFinal yFinal
-                            if getContent destCell == Empty
+                            let origCell = getCell board xInicial yInicial
+                            if getContent origCell /= Empty
                                 then do
-                                    let validMove = ehMovimentoValido board (xInicial, yInicial) (xFinal, yFinal) (getContent origCell)
-                                    if validMove
+                                    putStrLn "Digite a coordenada da posição final que deseja movimentar (x,y):"
+                                    input2 <- getLine
+                                    let (xFinal, yFinal) = read input2 :: Coord
+                                    let destCell = getCell board xFinal yFinal
+                                    if getContent destCell == Empty
                                         then do
-                                            let tabuleiroComMovimento = moverPeca board (xInicial, yInicial) (xFinal, yFinal)
-                                            play tabuleiroComMovimento
+                                            let validMove = ehMovimentoValido board (xInicial, yInicial) (xFinal, yFinal) (getContent origCell)
+                                            if validMove
+                                                then do
+                                                    let tabuleiroComMovimento = moverPeca board (xInicial, yInicial) (xFinal, yFinal)
+                                                    play tabuleiroComMovimento
+                                                else do
+                                                    putStrLn "Movimento inválido."
+                                                    play board
                                         else do
-                                            putStrLn "Movimento inválido."
+                                            putStrLn "Posição final ocupada. Tente novamente."
                                             play board
                                 else do
-                                    putStrLn "Posição final ocupada. Tente novamente."
+                                    putStrLn "Não há peça na posição inicial."
                                     play board
                         else do
-                            putStrLn "Não há peça na posição inicial."
+                            putStrLn "Peça do oponente, favor tentar novamente."
                             play board
-                else do
-                    putStrLn "Peça do oponente, favor tentar novamente."
-                    play board
+        else do
+            putStrLn "Parabéns! Você ganhou."
+
 
 
 someFunc :: IO ()
 someFunc = do
+    let newBoard = (createBoard 8)
     showBoard (newBoard)
-    play board15
+    play newBoard
